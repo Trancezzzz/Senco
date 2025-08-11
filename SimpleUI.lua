@@ -263,6 +263,7 @@ function LIB:CreateWindow(opts)
     api.Window = window
     api.Theme = theme
     api._tabs = {}
+    api._tabByName = {}
     api._defaultTab = nil
     api._registry = {}
     api.Id = id
@@ -293,6 +294,19 @@ function LIB:CreateWindow(opts)
     -- Tab creation
     function api:AddTab(tabName)
         tabName = tostring(tabName or ("Tab " .. tostring(#api._tabs + 1)))
+        -- Deduplicate: return existing tab if it already exists
+        if api._tabByName[tabName] then
+            local existing = api._tabByName[tabName]
+            -- Activate existing tab
+            for _, t in ipairs(api._tabs) do
+                t.Container.Visible = false
+                if t.TabButton then t.TabButton.BackgroundColor3 = theme.Button end
+            end
+            existing.Container.Visible = true
+            if existing.TabButton then existing.TabButton.BackgroundColor3 = theme.ButtonHover end
+            return existing
+        end
+
         local tabBtn = new("TextButton", {
             Text = tabName,
             Font = Enum.Font.GothamSemibold,
@@ -311,6 +325,8 @@ function LIB:CreateWindow(opts)
 
         local tabApi = {}
         tabApi.Container = container
+        tabApi.TabButton = tabBtn
+        tabApi.Name = tabName
 
         local function activate()
             for _, t in ipairs(api._tabs) do
@@ -540,6 +556,7 @@ function LIB:CreateWindow(opts)
         tabApi.Row = function(text, height) return row(container, text, height) end
 
         table.insert(api._tabs, tabApi)
+        api._tabByName[tabName] = tabApi
         if #api._tabs == 1 then
             api._defaultTab = tabApi
             tabBtn.BackgroundColor3 = theme.ButtonHover
