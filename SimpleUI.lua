@@ -12,6 +12,7 @@ local CACHE = getgenv().__SIMPLE_UI__
 if CACHE.__LIB then
     return CACHE.__LIB
 end
+CACHE.__windows = CACHE.__windows or {}
 
 local function protect(gui)
     if syn and syn.protect_gui then
@@ -122,6 +123,14 @@ function LIB:CreateWindow(opts)
     local theme = {}
     for k, v in pairs(DEFAULT_THEME) do theme[k] = v end
     for k, v in pairs(opts.theme or {}) do theme[k] = v end
+
+    local id = tostring(opts.id or opts.title or "Window")
+    if CACHE.__windows[id] and CACHE.__windows[id].Window and CACHE.__windows[id].Window.Parent then
+        print("[+] SimpleUI window already running: " .. id .. " (reuse)")
+        local existing = CACHE.__windows[id]
+        if existing.Screen then existing.Screen.Enabled = true end
+        return existing
+    end
 
     local screen = ensureScreen()
     local size = opts.size or Vector2.new(420, 300)
@@ -256,10 +265,17 @@ function LIB:CreateWindow(opts)
     api._tabs = {}
     api._defaultTab = nil
     api._registry = {}
+    api.Id = id
 
     function api:Show() screen.Enabled = true print("[+] UI shown") end
     function api:Hide() screen.Enabled = false print("[-] UI hidden") end
-    function api:Destroy() window:Destroy() print("[-] UI destroyed") end
+    function api:Destroy()
+        if window and window.Parent then window:Destroy() end
+        if CACHE.__windows and CACHE.__windows[api.Id] then
+            CACHE.__windows[api.Id] = nil
+        end
+        print("[-] UI destroyed")
+    end
     function api:BindToggleKey(keyCode)
         UIS.InputBegan:Connect(function(input, gp)
             if not gp and input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode == keyCode then
@@ -749,6 +765,9 @@ function LIB:CreateWindow(opts)
             toast:Destroy()
         end)
     end
+
+    -- register this window instance
+    CACHE.__windows[id] = api
 
     print("[+] SimpleUI ready")
     return api

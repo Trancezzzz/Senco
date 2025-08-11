@@ -5,7 +5,8 @@
 local RAW = "https://raw.githubusercontent.com/Trancezzzz/Senco/main/SimpleUI.lua"
 local SimpleUI = loadstring(game:HttpGet(RAW))()
 
-local ui = SimpleUI:CreateWindow({ title = "My Script Hub" })
+-- Provide a stable id to prevent duplicate windows if executed twice
+local ui = SimpleUI:CreateWindow({ title = "My Script Hub", id = "MyScriptHub" })
 ui:BindToggleKey(Enum.KeyCode.RightShift) -- toggle UI
 
 -- Tabs
