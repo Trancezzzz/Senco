@@ -72,6 +72,32 @@ local DEFAULT_THEME = {
     Warn = Color3.fromRGB(255,170,0),
 }
 
+local THEME_PRESETS = {
+    Dark = DEFAULT_THEME,
+    Light = {
+        WindowBg = Color3.fromRGB(240,240,244),
+        TitleBg = Color3.fromRGB(225,225,230),
+        Accent = Color3.fromRGB(0,120,255),
+        Text = Color3.fromRGB(20,20,22),
+        SubText = Color3.fromRGB(80,80,90),
+        RowBg = Color3.fromRGB(235,235,240),
+        Button = Color3.fromRGB(220,220,228),
+        ButtonHover = Color3.fromRGB(205,205,215),
+        Warn = Color3.fromRGB(255,170,0),
+    },
+    Midnight = {
+        WindowBg = Color3.fromRGB(10,12,18),
+        TitleBg = Color3.fromRGB(18,20,28),
+        Accent = Color3.fromRGB(120,90,255),
+        Text = Color3.fromRGB(235,235,255),
+        SubText = Color3.fromRGB(150,150,180),
+        RowBg = Color3.fromRGB(16,18,24),
+        Button = Color3.fromRGB(22,24,30),
+        ButtonHover = Color3.fromRGB(30,32,40),
+        Warn = Color3.fromRGB(255,140,0),
+    },
+}
+
 local LIB = {}
 LIB._theme = DEFAULT_THEME
 LIB._screen = nil
@@ -122,6 +148,9 @@ function LIB:CreateWindow(opts)
     opts = opts or {}
     local theme = {}
     for k, v in pairs(DEFAULT_THEME) do theme[k] = v end
+    if opts.themePreset and THEME_PRESETS[opts.themePreset] then
+        for k, v in pairs(THEME_PRESETS[opts.themePreset]) do theme[k] = v end
+    end
     for k, v in pairs(opts.theme or {}) do theme[k] = v end
 
     local id = tostring(opts.id or opts.title or "Window")
@@ -327,6 +356,7 @@ function LIB:CreateWindow(opts)
         tabApi.Container = container
         tabApi.TabButton = tabBtn
         tabApi.Name = tabName
+        tabApi._current = nil
 
         local function activate()
             for _, t in ipairs(api._tabs) do
@@ -349,6 +379,61 @@ function LIB:CreateWindow(opts)
                 Parent = container
             })
             return lbl
+        end
+
+        -- Collapsible groups to organize many controls
+        function tabApi:BeginSection(title, collapsed)
+            local group = new("Frame", {
+                BackgroundColor3 = theme.RowBg,
+                BorderSizePixel = 0,
+                Size = UDim2.new(1, 0, 0, 32),
+                Parent = container
+            })
+            round(group, 6)
+            local header = new("TextButton", {
+                Text = tostring(title or "Section"),
+                Font = Enum.Font.GothamSemibold,
+                TextSize = 13,
+                TextColor3 = theme.Text,
+                BackgroundColor3 = Color3.new(0,0,0),
+                BackgroundTransparency = 1,
+                AutoButtonColor = false,
+                Size = UDim2.new(1, -8, 0, 28),
+                Position = UDim2.fromOffset(8, 2),
+                Parent = group
+            })
+            local body = new("Frame", {
+                BackgroundTransparency = 1,
+                Position = UDim2.new(0, 8, 0, 32),
+                Size = UDim2.new(1, -16, 0, 0),
+                Parent = group
+            })
+            local bl = new("UIListLayout", { FillDirection = Enum.FillDirection.Vertical, Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder })
+            bl.Parent = body
+            local function resize()
+                group.Size = UDim2.new(1, 0, 0, 32 + (body.Visible and (bl.AbsoluteContentSize.Y + 8) or 0))
+            end
+            bl:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(resize)
+            local open = not collapsed
+            body.Visible = open
+            header.Text = (open and "▼ " or "► ") .. header.Text
+            local function toggle()
+                open = not open
+                body.Visible = open
+                header.Text = (open and "▼ " or "► ") .. tostring(title or "Section")
+                resize()
+            end
+            header.MouseButton1Click:Connect(toggle)
+            task.defer(resize)
+            tabApi._current = body
+            return {
+                End = function()
+                    tabApi._current = nil
+                    resize()
+                end,
+                Toggle = toggle,
+                Body = body,
+            }
         end
 
         function tabApi:AddLabel(text)
@@ -576,7 +661,7 @@ function LIB:CreateWindow(opts)
         end
 
         -- expose base methods to tab
-        tabApi.Row = function(text, height) return row(container, text, height) end
+        tabApi.Row = function(text, height) return row(tabApi._current or container, text, height) end
 
         table.insert(api._tabs, tabApi)
         api._tabByName[tabName] = tabApi

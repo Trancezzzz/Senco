@@ -3,7 +3,7 @@
 
 -- Load SimpleUI from this repo
 local SimpleUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Trancezzzz/Senco/main/SimpleUI.lua"))()
-local ui = SimpleUI:CreateWindow({ title = "Fly Controls", id = "FlyCFrameUI" })
+local ui = SimpleUI:CreateWindow({ title = "Fly Controls", id = "FlyCFrameUI", themePreset = "Midnight" })
 local flyTab = ui:AddTab("Fly")
 ui:BindToggleKey(Enum.KeyCode.RightShift)
 
@@ -183,6 +183,21 @@ settings:AddButton("Save Config", function() ui:SaveConfig("fly") end)
 settings:AddButton("Load Config", function() ui:LoadConfig("fly") end)
 settings:AddSection("Session")
 settings:AddButton("Unload UI", function() ui:Destroy() end)
+
+-- Example of collapsible section usage for dense hubs
+local grp = settings:BeginSection("Advanced", true)
+settings:AddLabel("Preset theme switch:")
+settings:AddButton("Dark", function()
+    ui:Destroy();
+    local SimpleUI2 = loadstring(game:HttpGet("https://raw.githubusercontent.com/Trancezzzz/Senco/main/SimpleUI.lua"))()
+    SimpleUI2:CreateWindow({ title = "Fly Controls", id = "FlyCFrameUI", themePreset = "Dark" })
+end)
+settings:AddButton("Light", function()
+    ui:Destroy();
+    local SimpleUI2 = loadstring(game:HttpGet("https://raw.githubusercontent.com/Trancezzzz/Senco/main/SimpleUI.lua"))()
+    SimpleUI2:CreateWindow({ title = "Fly Controls", id = "FlyCFrameUI", themePreset = "Light" })
+end)
+grp.End()
 
 flyTab:AddLabel("Use E to toggle. Space/LeftCtrl for vertical.")
 
