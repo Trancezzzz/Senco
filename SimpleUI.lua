@@ -5,6 +5,7 @@
 local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
 local TS = game:GetService("TweenService")
+local HttpService = game:GetService("HttpService")
 
 getgenv().__SIMPLE_UI__ = getgenv().__SIMPLE_UI__ or {}
 local CACHE = getgenv().__SIMPLE_UI__
@@ -174,31 +175,57 @@ function LIB:CreateWindow(opts)
 
     makeDraggable(window, bar)
 
-    local content = new("ScrollingFrame", {
+    -- Tabs bar on the left
+    local tabsBar = new("Frame", {
         BackgroundTransparency = 1,
         Position = UDim2.new(0, 8, 0, 40),
-        Size = UDim2.new(1, -16, 1, -48),
-        ScrollBarThickness = 6,
-        BorderSizePixel = 0,
+        Size = UDim2.new(0, 120, 1, -48),
         Parent = window
     })
-    pad(content, 8)
-    local list = new("UIListLayout", {
+    local tabsList = new("UIListLayout", {
         FillDirection = Enum.FillDirection.Vertical,
         Padding = UDim.new(0, 6),
-        SortOrder = Enum.SortOrder.LayoutOrder
+        SortOrder = Enum.SortOrder.LayoutOrder,
+        HorizontalAlignment = Enum.HorizontalAlignment.Left,
+        VerticalAlignment = Enum.VerticalAlignment.Top
     })
-    list.Parent = content
-    list:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-        content.CanvasSize = UDim2.new(0, 0, 0, list.AbsoluteContentSize.Y + 8)
-    end)
+    tabsList.Parent = tabsBar
 
-    local function row(text, height)
+    -- Content area on the right where tab pages live
+    local contentArea = new("Frame", {
+        BackgroundTransparency = 1,
+        Position = UDim2.new(0, 136, 0, 40),
+        Size = UDim2.new(1, -144, 1, -48),
+        Parent = window
+    })
+
+    local function makeContainer()
+        local scrolling = new("ScrollingFrame", {
+            BackgroundTransparency = 1,
+            Size = UDim2.fromScale(1, 1),
+            ScrollBarThickness = 6,
+            Visible = false,
+            Parent = contentArea
+        })
+        pad(scrolling, 8)
+        local list = new("UIListLayout", {
+            FillDirection = Enum.FillDirection.Vertical,
+            Padding = UDim.new(0, 6),
+            SortOrder = Enum.SortOrder.LayoutOrder
+        })
+        list.Parent = scrolling
+        list:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+            scrolling.CanvasSize = UDim2.new(0, 0, 0, list.AbsoluteContentSize.Y + 8)
+        end)
+        return scrolling
+    end
+
+    local function row(parentContainer, text, height)
         local r = new("Frame", {
             BackgroundColor3 = theme.RowBg,
             Size = UDim2.new(1, 0, 0, height or 36),
             BorderSizePixel = 0,
-            Parent = content
+            Parent = parentContainer
         })
         round(r, 6)
         local lbl = new("TextLabel", {
@@ -226,6 +253,9 @@ function LIB:CreateWindow(opts)
     api.Screen = screen
     api.Window = window
     api.Theme = theme
+    api._tabs = {}
+    api._defaultTab = nil
+    api._registry = {}
 
     function api:Show() screen.Enabled = true print("[+] UI shown") end
     function api:Hide() screen.Enabled = false print("[-] UI hidden") end
@@ -238,8 +268,236 @@ function LIB:CreateWindow(opts)
         end)
     end
 
+    -- Internal helper to register controls for configs
+    local function register(id, getter, setter)
+        if not id then return end
+        api._registry[id] = { get = getter, set = setter }
+    end
+
+    -- Tab creation
+    function api:AddTab(tabName)
+        tabName = tostring(tabName or ("Tab " .. tostring(#api._tabs + 1)))
+        local tabBtn = new("TextButton", {
+            Text = tabName,
+            Font = Enum.Font.GothamSemibold,
+            TextSize = 13,
+            TextColor3 = theme.Text,
+            BackgroundColor3 = DEFAULT_THEME.Button,
+            AutoButtonColor = false,
+            Size = UDim2.new(1, -8, 0, 28),
+            Parent = tabsBar
+        })
+        round(tabBtn, 6)
+        tabBtn.MouseEnter:Connect(function() tabBtn.BackgroundColor3 = theme.ButtonHover end)
+        tabBtn.MouseLeave:Connect(function() tabBtn.BackgroundColor3 = theme.Button end)
+
+        local container = makeContainer()
+
+        local tabApi = {}
+        tabApi.Container = container
+
+        local function activate()
+            for _, t in ipairs(api._tabs) do
+                t.Container.Visible = false
+            end
+            container.Visible = true
+        end
+        tabBtn.MouseButton1Click:Connect(activate)
+
+        -- Components inside tab
+        function tabApi:AddSection(text)
+            local lbl = new("TextLabel", {
+                Text = tostring(text or "Section"),
+                Font = Enum.Font.GothamBold,
+                TextSize = 14,
+                TextColor3 = theme.SubText,
+                BackgroundTransparency = 1,
+                Size = UDim2.new(1, -8, 0, 20),
+                TextXAlignment = Enum.TextXAlignment.Left,
+                Parent = container
+            })
+            return lbl
+        end
+
+        function tabApi:AddLabel(text)
+            local frame = new("Frame", {
+                BackgroundColor3 = theme.RowBg,
+                Size = UDim2.new(1, 0, 0, 30),
+                BorderSizePixel = 0,
+                Parent = container
+            })
+            round(frame, 6)
+            local lbl = new("TextLabel", {
+                Text = tostring(text or "Label"),
+                Font = Enum.Font.Gotham,
+                TextSize = 13,
+                TextColor3 = theme.Text,
+                BackgroundTransparency = 1,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                Size = UDim2.new(1, -16, 1, 0),
+                Position = UDim2.fromOffset(10, 0),
+                Parent = frame
+            })
+            return {
+                SetText = function(t) lbl.Text = tostring(t) end,
+                GetText = function() return lbl.Text end
+            }
+        end
+
+        function tabApi:AddButton(text, cb)
+            local _, _, right = row(container, text, 36)
+            local btn = new("TextButton", {
+                Text = text,
+                Font = Enum.Font.GothamSemibold,
+                TextSize = 13,
+                TextColor3 = theme.Text,
+                BackgroundColor3 = theme.Button,
+                AutoButtonColor = false,
+                Size = UDim2.new(1, 0, 0, 28),
+                Parent = right
+            })
+            round(btn, 6)
+            btn.MouseEnter:Connect(function() btn.BackgroundColor3 = theme.ButtonHover end)
+            btn.MouseLeave:Connect(function() btn.BackgroundColor3 = theme.Button end)
+            btn.MouseButton1Click:Connect(function() if cb then cb() end end)
+        end
+
+        function tabApi:AddToggle(text, defaultValue, cb, id)
+            local _, _, right = row(container, text, 36)
+            local state = defaultValue and true or false
+            local track = new("Frame", { BackgroundColor3 = state and theme.Accent or theme.Button, Size = UDim2.fromOffset(52, 24), Parent = right })
+            round(track, 12)
+            local knob = new("Frame", { BackgroundColor3 = Color3.fromRGB(255,255,255), Size = UDim2.fromOffset(20, 20), Position = state and UDim2.fromOffset(28, 2) or UDim2.fromOffset(2, 2), Parent = track })
+            round(knob, 10)
+            local function set(v)
+                state = v and true or false
+                TS:Create(knob, TweenInfo.new(0.15), { Position = state and UDim2.fromOffset(28, 2) or UDim2.fromOffset(2, 2) }):Play()
+                TS:Create(track, TweenInfo.new(0.15), { BackgroundColor3 = state and theme.Accent or theme.Button }):Play()
+                if cb then cb(state) end
+            end
+            track.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then set(not state) end end)
+            register(id, function() return state end, set)
+            return { Set = set, Get = function() return state end }
+        end
+
+        function tabApi:AddSlider(text, min, max, defaultValue, cb, id)
+            min, max = min or 0, max or 100
+            local value = defaultValue or min
+            local _, _, right = row(container, text, 40)
+            local bar = new("Frame", { BackgroundColor3 = theme.Button, Size = UDim2.new(1, 0, 0, 8), Position = UDim2.new(0, 0, 0.5, -4), Parent = right })
+            round(bar, 4)
+            local fill = new("Frame", { BackgroundColor3 = theme.Accent, Size = UDim2.new((value - min) / math.max(1, (max - min)), 0, 1, 0), Parent = bar })
+            round(fill, 4)
+            local dragging = false
+            local function setFromX(px)
+                local rel = math.clamp((px - bar.AbsolutePosition.X) / math.max(1, bar.AbsoluteSize.X), 0, 1)
+                value = math.floor((min + (max - min) * rel) + 0.5)
+                fill.Size = UDim2.new((value - min) / math.max(1, (max - min)), 0, 1, 0)
+                if cb then cb(value) end
+            end
+            bar.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then dragging = true setFromX(i.Position.X) end end)
+            bar.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end end)
+            UIS.InputChanged:Connect(function(i) if dragging and i.UserInputType == Enum.UserInputType.MouseMovement then setFromX(i.Position.X) end end)
+            local function set(v) setFromX(bar.AbsolutePosition.X + bar.AbsoluteSize.X * math.clamp((v - min) / math.max(1, (max - min)), 0, 1)) end
+            register(id, function() return value end, set)
+            return { Set = set, Get = function() return value end }
+        end
+
+        function tabApi:AddDropdown(text, options, defaultValue, cb, id)
+            options = options or {}
+            local rowFrame, _, right = row(container, text, 36)
+            local btn = new("TextButton", {
+                Text = tostring(defaultValue or (options[1] or "Select")),
+                Font = Enum.Font.Gotham,
+                TextSize = 13,
+                TextColor3 = theme.Text,
+                BackgroundColor3 = theme.Button,
+                AutoButtonColor = false,
+                Size = UDim2.new(1, 0, 0, 28),
+                Parent = right
+            })
+            round(btn, 6)
+            btn.MouseEnter:Connect(function() btn.BackgroundColor3 = theme.ButtonHover end)
+            btn.MouseLeave:Connect(function() btn.BackgroundColor3 = theme.Button end)
+
+            local open = false
+            local menu = new("Frame", {
+                BackgroundColor3 = theme.RowBg,
+                BorderSizePixel = 0,
+                Visible = false,
+                Parent = rowFrame
+            })
+            round(menu, 6)
+            pad(menu, 6)
+            local menuList = new("UIListLayout", { FillDirection = Enum.FillDirection.Vertical, Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder })
+            menuList.Parent = menu
+
+            local value = defaultValue or options[1]
+
+            local function rebuild()
+                menu:ClearAllChildren()
+                menuList.Parent = menu
+                for _, opt in ipairs(options) do
+                    local optBtn = new("TextButton", {
+                        Text = tostring(opt),
+                        Font = Enum.Font.Gotham,
+                        TextSize = 13,
+                        TextColor3 = theme.Text,
+                        BackgroundColor3 = theme.Button,
+                        AutoButtonColor = false,
+                        Size = UDim2.new(1, -8, 0, 24),
+                        Parent = menu
+                    })
+                    round(optBtn, 4)
+                    optBtn.MouseEnter:Connect(function() optBtn.BackgroundColor3 = theme.ButtonHover end)
+                    optBtn.MouseLeave:Connect(function() optBtn.BackgroundColor3 = theme.Button end)
+                    optBtn.MouseButton1Click:Connect(function()
+                        value = opt
+                        btn.Text = tostring(value)
+                        menu.Visible = false
+                        open = false
+                        if cb then cb(value) end
+                    end)
+                end
+                menu.Size = UDim2.new(1, -16, 0, menuList.AbsoluteContentSize.Y + 8)
+            end
+            rebuild()
+
+            btn.MouseButton1Click:Connect(function()
+                open = not open
+                menu.Visible = open
+            end)
+
+            local function set(v)
+                value = v
+                btn.Text = tostring(v)
+                if cb then cb(value) end
+            end
+            local function setOptions(newOptions)
+                options = newOptions or {}
+                rebuild()
+            end
+            register(id, function() return value end, set)
+            return { Set = set, Get = function() return value end, SetOptions = setOptions }
+        end
+
+        -- expose base methods to tab
+        tabApi.Row = function(text, height) return row(container, text, height) end
+
+        table.insert(api._tabs, tabApi)
+        if #api._tabs == 1 then
+            api._defaultTab = tabApi
+            tabBtn.BackgroundColor3 = theme.ButtonHover
+            tabApi.Container.Visible = true
+        end
+        return tabApi
+    end
+
+    -- Default tab for backwards compatibility
+    local defaultTab = api:AddTab("Main")
+
     function api:AddButton(text, cb)
-        local _, _, right = row(text, 36)
+        local _, _, right = defaultTab.Row(text, 36)
         local btn = new("TextButton", {
             Text = text,
             Font = Enum.Font.GothamSemibold,
@@ -256,8 +514,8 @@ function LIB:CreateWindow(opts)
         btn.MouseButton1Click:Connect(function() if cb then cb() end end)
     end
 
-    function api:AddToggle(text, defaultValue, cb)
-        local _, _, right = row(text, 36)
+    function api:AddToggle(text, defaultValue, cb, id)
+        local _, _, right = defaultTab.Row(text, 36)
         local state = defaultValue and true or false
 
         local track = new("Frame", {
@@ -286,13 +544,14 @@ function LIB:CreateWindow(opts)
             if i.UserInputType == Enum.UserInputType.MouseButton1 then set(not state) end
         end)
 
+        register(id, function() return state end, set)
         return { Set = set, Get = function() return state end }
     end
 
-    function api:AddSlider(text, min, max, defaultValue, cb)
+    function api:AddSlider(text, min, max, defaultValue, cb, id)
         min, max = min or 0, max or 100
         local value = defaultValue or min
-        local _, _, right = row(text, 40)
+        local _, _, right = defaultTab.Row(text, 40)
 
         local bar = new("Frame", {
             BackgroundColor3 = theme.Button,
@@ -332,16 +591,20 @@ function LIB:CreateWindow(opts)
             end
         end)
 
+        local function set(v)
+            setFromX(bar.AbsolutePosition.X + bar.AbsoluteSize.X * math.clamp((v - min) / math.max(1, (max - min)), 0, 1))
+        end
+        register(id, function() return value end, set)
         return {
             Set = function(v)
-                setFromX(bar.AbsolutePosition.X + bar.AbsoluteSize.X * math.clamp((v - min) / math.max(1, (max - min)), 0, 1))
+                set(v)
             end,
             Get = function() return value end,
         }
     end
 
     function api:AddKeybind(text, defaultKey, cb)
-        local _, _, right = row(text, 36)
+        local _, _, right = defaultTab.Row(text, 36)
         local listening = false
         local current = defaultKey or Enum.KeyCode.E
 
@@ -385,7 +648,7 @@ function LIB:CreateWindow(opts)
     end
 
     function api:AddTextbox(text, placeholder, cb)
-        local _, _, right = row(text, 36)
+        local _, _, right = defaultTab.Row(text, 36)
         local box = new("TextBox", {
             Text = "",
             PlaceholderText = placeholder or "Type...",
@@ -402,6 +665,62 @@ function LIB:CreateWindow(opts)
             if cb then cb(box.Text) end
         end)
         return box
+    end
+
+    -- Config I/O
+    local function canFS()
+        return (typeof(writefile) == "function" and typeof(readfile) == "function" and typeof(isfile) == "function" and typeof(makefolder) == "function")
+    end
+    local function configPath(name)
+        name = tostring(name or "default")
+        local root = "SimpleUI"
+        if canFS() then
+            if not isfolder(root) then pcall(makefolder, root) end
+            return string.format("%s/%s_%s.json", root, tostring(window.Name), name)
+        end
+        return nil
+    end
+    function api:ExportConfig()
+        local data = {}
+        for id, rec in pairs(api._registry) do
+            data[id] = rec.get()
+        end
+        return data
+    end
+    function api:ImportConfig(tbl)
+        if type(tbl) ~= "table" then return end
+        for id, val in pairs(tbl) do
+            local rec = api._registry[id]
+            if rec and rec.set then pcall(rec.set, val) end
+        end
+    end
+    function api:SaveConfig(name)
+        local path = configPath(name)
+        local data = HttpService:JSONEncode(self:ExportConfig())
+        if path then
+            pcall(writefile, path, data)
+            print("[+] Saved config to ", path)
+        else
+            -- fallback to global memory
+            CACHE.__configs = CACHE.__configs or {}
+            CACHE.__configs[window.Name .. ":" .. tostring(name or "default")] = data
+            print("[+] Saved config to memory")
+        end
+    end
+    function api:LoadConfig(name)
+        local path = configPath(name)
+        local raw
+        if path and isfile(path) then
+            raw = readfile(path)
+        elseif CACHE.__configs then
+            raw = CACHE.__configs[window.Name .. ":" .. tostring(name or "default")]
+        end
+        if raw then
+            local ok, tbl = pcall(HttpService.JSONDecode, HttpService, raw)
+            if ok then self:ImportConfig(tbl) print("[+] Config loaded") else print("[-] Invalid config data") end
+        else
+            print("[-] No config found")
+        end
     end
 
     function api:Notify(text, seconds)
