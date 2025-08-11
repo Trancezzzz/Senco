@@ -295,7 +295,26 @@ function LIB:CreateWindow(opts)
     api._tabByName = {}
     api._defaultTab = nil
     api._registry = {}
+    api._themeWatch = {}
     api.Id = id
+
+    local function addWatch(fn)
+        table.insert(api._themeWatch, fn)
+    end
+    local function applyTheme()
+        for _, fn in ipairs(api._themeWatch) do
+            pcall(fn)
+        end
+    end
+
+    -- base theme watchers for window chrome
+    addWatch(function()
+        window.BackgroundColor3 = theme.WindowBg
+        bar.BackgroundColor3 = theme.TitleBg
+        title.TextColor3 = theme.Text
+        close.BackgroundColor3 = theme.Button
+        close.TextColor3 = theme.SubText
+    end)
 
     function api:Show() screen.Enabled = true print("[+] UI shown") end
     function api:Hide() screen.Enabled = false print("[-] UI hidden") end
@@ -305,6 +324,17 @@ function LIB:CreateWindow(opts)
             CACHE.__windows[api.Id] = nil
         end
         print("[-] UI destroyed")
+    end
+    function api:SetTheme(overrides)
+        for k, v in pairs(overrides or {}) do theme[k] = v end
+        applyTheme()
+    end
+    function api:SetThemePreset(preset)
+        local p = THEME_PRESETS[tostring(preset)]
+        if p then
+            for k, v in pairs(p) do theme[k] = v end
+            applyTheme()
+        end
     end
     function api:BindToggleKey(keyCode)
         UIS.InputBegan:Connect(function(input, gp)
@@ -349,6 +379,10 @@ function LIB:CreateWindow(opts)
         round(tabBtn, 6)
         tabBtn.MouseEnter:Connect(function() tabBtn.BackgroundColor3 = theme.ButtonHover end)
         tabBtn.MouseLeave:Connect(function() tabBtn.BackgroundColor3 = theme.Button end)
+        addWatch(function()
+            tabBtn.BackgroundColor3 = theme.Button
+            tabBtn.TextColor3 = theme.Text
+        end)
 
         local container = makeContainer()
 
@@ -378,6 +412,7 @@ function LIB:CreateWindow(opts)
                 TextXAlignment = Enum.TextXAlignment.Left,
                 Parent = container
             })
+            addWatch(function() lbl.TextColor3 = theme.SubText end)
             return lbl
         end
 
@@ -455,6 +490,10 @@ function LIB:CreateWindow(opts)
                 Position = UDim2.fromOffset(10, 0),
                 Parent = frame
             })
+            addWatch(function()
+                frame.BackgroundColor3 = theme.RowBg
+                lbl.TextColor3 = theme.Text
+            end)
             return {
                 SetText = function(t) lbl.Text = tostring(t) end,
                 GetText = function() return lbl.Text end
@@ -477,6 +516,10 @@ function LIB:CreateWindow(opts)
             btn.MouseEnter:Connect(function() btn.BackgroundColor3 = theme.ButtonHover end)
             btn.MouseLeave:Connect(function() btn.BackgroundColor3 = theme.Button end)
             btn.MouseButton1Click:Connect(function() if cb then cb() end end)
+            addWatch(function()
+                btn.BackgroundColor3 = theme.Button
+                btn.TextColor3 = theme.Text
+            end)
         end
 
         function tabApi:AddToggle(text, defaultValue, cb, id)
@@ -493,6 +536,7 @@ function LIB:CreateWindow(opts)
                 if cb then cb(state) end
             end
             track.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then set(not state) end end)
+            addWatch(function() set(state) end)
             register(id, function() return state end, set)
             return { Set = set, Get = function() return state end }
         end
@@ -546,6 +590,14 @@ function LIB:CreateWindow(opts)
                 local localY = bar.AbsolutePosition.Y - rowFrame.AbsolutePosition.Y - 4
                 tooltip.Position = UDim2.fromOffset(localX, localY)
             end
+            addWatch(function()
+                bar.BackgroundColor3 = theme.Button
+                fill.BackgroundColor3 = theme.Accent
+                valueBox.BackgroundColor3 = theme.Button
+                valueBox.TextColor3 = theme.Text
+                tooltip.BackgroundColor3 = theme.RowBg
+                tooltip.TextColor3 = theme.Text
+            end)
             bar.InputBegan:Connect(function(i)
                 if i.UserInputType == Enum.UserInputType.MouseButton1 then
                     dragging = true
@@ -610,6 +662,11 @@ function LIB:CreateWindow(opts)
             pad(menu, 6)
             local menuList = new("UIListLayout", { FillDirection = Enum.FillDirection.Vertical, Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder })
             menuList.Parent = menu
+            addWatch(function()
+                btn.BackgroundColor3 = theme.Button
+                btn.TextColor3 = theme.Text
+                menu.BackgroundColor3 = theme.RowBg
+            end)
 
             local value = defaultValue or options[1]
 
@@ -881,7 +938,7 @@ function LIB:CreateWindow(opts)
 
     function api:AddTextbox(text, placeholder, cb)
         local _, _, right = defaultTab.Row(text, 36)
-        local box = new("TextBox", {
+            local box = new("TextBox", {
             Text = "",
             PlaceholderText = placeholder or "Type...",
             ClearTextOnFocus = false,
@@ -893,6 +950,10 @@ function LIB:CreateWindow(opts)
             Parent = right
         })
         round(box, 6)
+            addWatch(function()
+                box.BackgroundColor3 = theme.Button
+                box.TextColor3 = theme.Text
+            end)
         box.FocusLost:Connect(function()
             if cb then cb(box.Text) end
         end)

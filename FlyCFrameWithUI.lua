@@ -185,18 +185,11 @@ settings:AddSection("Session")
 settings:AddButton("Unload UI", function() ui:Destroy() end)
 
 -- Example of collapsible section usage for dense hubs
-local grp = settings:BeginSection("Advanced", true)
+local grp = settings:BeginSection("Appearance", false)
 settings:AddLabel("Preset theme switch:")
-settings:AddButton("Dark", function()
-    ui:Destroy();
-    local SimpleUI2 = loadstring(game:HttpGet("https://raw.githubusercontent.com/Trancezzzz/Senco/main/SimpleUI.lua"))()
-    SimpleUI2:CreateWindow({ title = "Fly Controls", id = "FlyCFrameUI", themePreset = "Dark" })
-end)
-settings:AddButton("Light", function()
-    ui:Destroy();
-    local SimpleUI2 = loadstring(game:HttpGet("https://raw.githubusercontent.com/Trancezzzz/Senco/main/SimpleUI.lua"))()
-    SimpleUI2:CreateWindow({ title = "Fly Controls", id = "FlyCFrameUI", themePreset = "Light" })
-end)
+settings:AddButton("Dark", function() ui:SetThemePreset("Dark") end)
+settings:AddButton("Light", function() ui:SetThemePreset("Light") end)
+settings:AddButton("Midnight", function() ui:SetThemePreset("Midnight") end)
 grp.End()
 
 flyTab:AddLabel("Use E to toggle. Space/LeftCtrl for vertical.")
