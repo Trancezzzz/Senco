@@ -155,10 +155,16 @@ function LIB:CreateWindow(opts)
 
     local id = tostring(opts.id or opts.title or "Window")
     if CACHE.__windows[id] and CACHE.__windows[id].Window and CACHE.__windows[id].Window.Parent then
-        print("[+] SimpleUI window already running: " .. id .. " (reuse)")
         local existing = CACHE.__windows[id]
-        if existing.Screen then existing.Screen.Enabled = true end
-        return existing
+        if type(existing.SetThemePreset) ~= "function" then
+            -- Old instance without new APIs: destroy and recreate
+            pcall(function() existing:Destroy() end)
+            CACHE.__windows[id] = nil
+        else
+            print("[+] SimpleUI window already running: " .. id .. " (reuse)")
+            if existing.Screen then existing.Screen.Enabled = true end
+            return existing
+        end
     end
 
     local screen = ensureScreen()
@@ -174,6 +180,10 @@ function LIB:CreateWindow(opts)
     })
     round(window, 8)
     window.Parent = screen
+    local scale = Instance.new("UIScale")
+    scale.Scale = 0.96
+    scale.Parent = window
+    TS:Create(scale, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Scale = 1 }):Play()
 
     local bar = new("Frame", {
         BackgroundColor3 = theme.TitleBg,
@@ -237,6 +247,18 @@ function LIB:CreateWindow(opts)
         Parent = window
     })
 
+    local function addGlow(frame)
+        local stroke = Instance.new("UIStroke")
+        stroke.Thickness = 1.2
+        stroke.Color = theme.Accent
+        stroke.Transparency = 0.6
+        stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+        stroke.Parent = frame
+        return stroke
+    end
+    local windowStroke = addGlow(window)
+    local barStroke = addGlow(bar)
+
     local function makeContainer()
         local scrolling = new("ScrollingFrame", {
             BackgroundTransparency = 1,
@@ -266,6 +288,7 @@ function LIB:CreateWindow(opts)
             Parent = parentContainer
         })
         round(r, 6)
+        local rStroke = addGlow(r)
         local lbl = new("TextLabel", {
             Text = text,
             Font = Enum.Font.GothamSemibold,
@@ -284,7 +307,7 @@ function LIB:CreateWindow(opts)
             Size = UDim2.fromOffset(130, r.Size.Y.Offset),
             Parent = r
         })
-        return r, lbl, right
+        return r, lbl, right, rStroke
     end
 
     local api = {}
@@ -314,6 +337,8 @@ function LIB:CreateWindow(opts)
         title.TextColor3 = theme.Text
         close.BackgroundColor3 = theme.Button
         close.TextColor3 = theme.SubText
+        windowStroke.Color = theme.Accent
+        barStroke.Color = theme.Accent
     end)
 
     function api:Show() screen.Enabled = true print("[+] UI shown") end
@@ -382,6 +407,14 @@ function LIB:CreateWindow(opts)
         addWatch(function()
             tabBtn.BackgroundColor3 = theme.Button
             tabBtn.TextColor3 = theme.Text
+        end)
+        local tbScale = Instance.new("UIScale")
+        tbScale.Parent = tabBtn
+        tabBtn.MouseButton1Down:Connect(function()
+            TS:Create(tbScale, TweenInfo.new(0.08), { Scale = 0.97 }):Play()
+        end)
+        tabBtn.MouseButton1Up:Connect(function()
+            TS:Create(tbScale, TweenInfo.new(0.12), { Scale = 1 }):Play()
         end)
 
         local container = makeContainer()
@@ -479,6 +512,7 @@ function LIB:CreateWindow(opts)
                 Parent = container
             })
             round(frame, 6)
+            local fStroke = addGlow(frame)
             local lbl = new("TextLabel", {
                 Text = tostring(text or "Label"),
                 Font = Enum.Font.Gotham,
@@ -493,6 +527,7 @@ function LIB:CreateWindow(opts)
             addWatch(function()
                 frame.BackgroundColor3 = theme.RowBg
                 lbl.TextColor3 = theme.Text
+                fStroke.Color = theme.Accent
             end)
             return {
                 SetText = function(t) lbl.Text = tostring(t) end,
@@ -520,6 +555,10 @@ function LIB:CreateWindow(opts)
                 btn.BackgroundColor3 = theme.Button
                 btn.TextColor3 = theme.Text
             end)
+            local s = Instance.new("UIScale")
+            s.Parent = btn
+            btn.MouseButton1Down:Connect(function() TS:Create(s, TweenInfo.new(0.08), { Scale = 0.97 }):Play() end)
+            btn.MouseButton1Up:Connect(function() TS:Create(s, TweenInfo.new(0.12), { Scale = 1 }):Play() end)
         end
 
         function tabApi:AddToggle(text, defaultValue, cb, id)
