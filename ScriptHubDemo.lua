@@ -2,7 +2,7 @@
 -- Example loader showing how to build a small script hub UI using SimpleUI
 -- Replace USERNAME/REPO with your GitHub details, then run this in your executor.
 
-local RAW = "https://raw.githubusercontent.com/USERNAME/REPO/main/SimpleUI.lua"
+local RAW = "https://raw.githubusercontent.com/Trancezzzz/Senco/main/SimpleUI.lua"
 local SimpleUI = loadstring(game:HttpGet(RAW))()
 
 local ui = SimpleUI:CreateWindow({ title = "My Script Hub" })
