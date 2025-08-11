@@ -399,21 +399,60 @@ function LIB:CreateWindow(opts)
         function tabApi:AddSlider(text, min, max, defaultValue, cb, id)
             min, max = min or 0, max or 100
             local value = defaultValue or min
-            local _, _, right = row(container, text, 40)
+            local rowFrame, labelLeft, right = row(container, text, 40)
+            labelLeft.Text = string.format("%s: %s", tostring(text), tostring(value))
             local bar = new("Frame", { BackgroundColor3 = theme.Button, Size = UDim2.new(1, 0, 0, 8), Position = UDim2.new(0, 0, 0.5, -4), Parent = right })
             round(bar, 4)
             local fill = new("Frame", { BackgroundColor3 = theme.Accent, Size = UDim2.new((value - min) / math.max(1, (max - min)), 0, 1, 0), Parent = bar })
             round(fill, 4)
+            local tooltip = new("TextLabel", {
+                Text = tostring(value),
+                Font = Enum.Font.GothamSemibold,
+                TextSize = 12,
+                BackgroundColor3 = theme.RowBg,
+                TextColor3 = theme.Text,
+                BackgroundTransparency = 0.1,
+                Visible = false,
+                ZIndex = 50,
+                AnchorPoint = Vector2.new(0.5, 1),
+                Size = UDim2.fromOffset(40, 16),
+                Parent = rowFrame
+            })
+            round(tooltip, 4)
             local dragging = false
             local function setFromX(px)
                 local rel = math.clamp((px - bar.AbsolutePosition.X) / math.max(1, bar.AbsoluteSize.X), 0, 1)
                 value = math.floor((min + (max - min) * rel) + 0.5)
                 fill.Size = UDim2.new((value - min) / math.max(1, (max - min)), 0, 1, 0)
                 if cb then cb(value) end
+                labelLeft.Text = string.format("%s: %s", tostring(text), tostring(value))
+                tooltip.Text = tostring(value)
+                local localX = math.clamp(px - rowFrame.AbsolutePosition.X, 12, rowFrame.AbsoluteSize.X - 12)
+                local localY = bar.AbsolutePosition.Y - rowFrame.AbsolutePosition.Y - 4
+                tooltip.Position = UDim2.fromOffset(localX, localY)
             end
-            bar.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then dragging = true setFromX(i.Position.X) end end)
+            bar.InputBegan:Connect(function(i)
+                if i.UserInputType == Enum.UserInputType.MouseButton1 then
+                    dragging = true
+                    tooltip.Visible = true
+                    setFromX(i.Position.X)
+                end
+            end)
             bar.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end end)
-            UIS.InputChanged:Connect(function(i) if dragging and i.UserInputType == Enum.UserInputType.MouseMovement then setFromX(i.Position.X) end end)
+            UIS.InputChanged:Connect(function(i)
+                if i.UserInputType == Enum.UserInputType.MouseMovement then
+                    if dragging then setFromX(i.Position.X) end
+                end
+            end)
+            bar.MouseEnter:Connect(function()
+                tooltip.Visible = true
+                -- position by current value when just hovering
+                local px = bar.AbsolutePosition.X + bar.AbsoluteSize.X * ((value - min) / math.max(1, (max - min)))
+                setFromX(px)
+            end)
+            bar.MouseLeave:Connect(function()
+                if not dragging then tooltip.Visible = false end
+            end)
             local function set(v) setFromX(bar.AbsolutePosition.X + bar.AbsoluteSize.X * math.clamp((v - min) / math.max(1, (max - min)), 0, 1)) end
             register(id, function() return value end, set)
             return { Set = set, Get = function() return value end }
@@ -567,7 +606,8 @@ function LIB:CreateWindow(opts)
     function api:AddSlider(text, min, max, defaultValue, cb, id)
         min, max = min or 0, max or 100
         local value = defaultValue or min
-        local _, _, right = defaultTab.Row(text, 40)
+        local rowFrame, labelLeft, right = defaultTab.Row(text, 40)
+        labelLeft.Text = string.format("%s: %s", tostring(text), tostring(value))
 
         local bar = new("Frame", {
             BackgroundColor3 = theme.Button,
@@ -584,17 +624,37 @@ function LIB:CreateWindow(opts)
         })
         round(fill, 4)
 
+        local tooltip = new("TextLabel", {
+            Text = tostring(value),
+            Font = Enum.Font.GothamSemibold,
+            TextSize = 12,
+            BackgroundColor3 = theme.RowBg,
+            TextColor3 = theme.Text,
+            BackgroundTransparency = 0.1,
+            Visible = false,
+            ZIndex = 50,
+            AnchorPoint = Vector2.new(0.5, 1),
+            Size = UDim2.fromOffset(40, 16),
+            Parent = rowFrame
+        })
+        round(tooltip, 4)
         local dragging = false
         local function setFromX(px)
             local rel = math.clamp((px - bar.AbsolutePosition.X) / math.max(1, bar.AbsoluteSize.X), 0, 1)
             value = math.floor((min + (max - min) * rel) + 0.5)
             fill.Size = UDim2.new((value - min) / math.max(1, (max - min)), 0, 1, 0)
             if cb then cb(value) end
+            labelLeft.Text = string.format("%s: %s", tostring(text), tostring(value))
+            tooltip.Text = tostring(value)
+            local localX = math.clamp(px - rowFrame.AbsolutePosition.X, 12, rowFrame.AbsoluteSize.X - 12)
+            local localY = bar.AbsolutePosition.Y - rowFrame.AbsolutePosition.Y - 4
+            tooltip.Position = UDim2.fromOffset(localX, localY)
         end
 
         bar.InputBegan:Connect(function(i)
             if i.UserInputType == Enum.UserInputType.MouseButton1 then
                 dragging = true
+                tooltip.Visible = true
                 setFromX(i.Position.X)
             end
         end)
@@ -602,9 +662,17 @@ function LIB:CreateWindow(opts)
             if i.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end
         end)
         UIS.InputChanged:Connect(function(i)
-            if dragging and i.UserInputType == Enum.UserInputType.MouseMovement then
-                setFromX(i.Position.X)
+            if i.UserInputType == Enum.UserInputType.MouseMovement then
+                if dragging then setFromX(i.Position.X) end
             end
+        end)
+        bar.MouseEnter:Connect(function()
+            tooltip.Visible = true
+            local px = bar.AbsolutePosition.X + bar.AbsoluteSize.X * ((value - min) / math.max(1, (max - min)))
+            setFromX(px)
+        end)
+        bar.MouseLeave:Connect(function()
+            if not dragging then tooltip.Visible = false end
         end)
 
         local function set(v)
