@@ -176,6 +176,14 @@ local speedSlider = flyTab:AddSlider("Speed", minSpeed, maxSpeed, speed, functio
     if flying then print("[+] Speed = " .. speed) end
 end, "fly_speed")
 
+-- Settings tab with Unload + Config
+local settings = ui:AddTab("Settings")
+settings:AddSection("Config")
+settings:AddButton("Save Config", function() ui:SaveConfig("fly") end)
+settings:AddButton("Load Config", function() ui:LoadConfig("fly") end)
+settings:AddSection("Session")
+settings:AddButton("Unload UI", function() ui:Destroy() end)
+
 flyTab:AddLabel("Use E to toggle. Space/LeftCtrl for vertical.")
 
 

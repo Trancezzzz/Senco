@@ -417,10 +417,23 @@ function LIB:CreateWindow(opts)
             local value = defaultValue or min
             local rowFrame, labelLeft, right = row(container, text, 40)
             labelLeft.Text = string.format("%s: %s", tostring(text), tostring(value))
-            local bar = new("Frame", { BackgroundColor3 = theme.Button, Size = UDim2.new(1, 0, 0, 8), Position = UDim2.new(0, 0, 0.5, -4), Parent = right })
+            local bar = new("Frame", { BackgroundColor3 = theme.Button, Size = UDim2.new(1, -50, 0, 8), Position = UDim2.new(0, 0, 0.5, -4), Parent = right })
             round(bar, 4)
             local fill = new("Frame", { BackgroundColor3 = theme.Accent, Size = UDim2.new((value - min) / math.max(1, (max - min)), 0, 1, 0), Parent = bar })
             round(fill, 4)
+            local valueBox = new("TextBox", {
+                Text = tostring(value),
+                Font = Enum.Font.GothamSemibold,
+                TextSize = 12,
+                TextColor3 = theme.Text,
+                BackgroundColor3 = theme.Button,
+                ClearTextOnFocus = false,
+                Size = UDim2.fromOffset(46, 22),
+                AnchorPoint = Vector2.new(1, 0.5),
+                Position = UDim2.new(1, 0, 0.5, 0),
+                Parent = right
+            })
+            round(valueBox, 4)
             local tooltip = new("TextLabel", {
                 Text = tostring(value),
                 Font = Enum.Font.GothamSemibold,
@@ -443,6 +456,7 @@ function LIB:CreateWindow(opts)
                 if cb then cb(value) end
                 labelLeft.Text = string.format("%s: %s", tostring(text), tostring(value))
                 tooltip.Text = tostring(value)
+                valueBox.Text = tostring(value)
                 local localX = math.clamp(px - rowFrame.AbsolutePosition.X, 12, rowFrame.AbsoluteSize.X - 12)
                 local localY = bar.AbsolutePosition.Y - rowFrame.AbsolutePosition.Y - 4
                 tooltip.Position = UDim2.fromOffset(localX, localY)
@@ -468,6 +482,15 @@ function LIB:CreateWindow(opts)
             end)
             bar.MouseLeave:Connect(function()
                 if not dragging then tooltip.Visible = false end
+            end)
+            valueBox.FocusLost:Connect(function()
+                local n = tonumber(valueBox.Text)
+                if n then
+                    n = math.clamp(math.floor(n + 0.5), min, max)
+                    setFromX(bar.AbsolutePosition.X + bar.AbsoluteSize.X * ((n - min) / math.max(1, (max - min))))
+                else
+                    valueBox.Text = tostring(value)
+                end
             end)
             local function set(v) setFromX(bar.AbsolutePosition.X + bar.AbsoluteSize.X * math.clamp((v - min) / math.max(1, (max - min)), 0, 1)) end
             register(id, function() return value end, set)
@@ -628,7 +651,7 @@ function LIB:CreateWindow(opts)
 
         local bar = new("Frame", {
             BackgroundColor3 = theme.Button,
-            Size = UDim2.new(1, 0, 0, 8),
+            Size = UDim2.new(1, -50, 0, 8),
             Position = UDim2.new(0, 0, 0.5, -4),
             Parent = right
         })
@@ -640,6 +663,19 @@ function LIB:CreateWindow(opts)
             Parent = bar
         })
         round(fill, 4)
+        local valueBox = new("TextBox", {
+            Text = tostring(value),
+            Font = Enum.Font.GothamSemibold,
+            TextSize = 12,
+            TextColor3 = theme.Text,
+            BackgroundColor3 = theme.Button,
+            ClearTextOnFocus = false,
+            Size = UDim2.fromOffset(46, 22),
+            AnchorPoint = Vector2.new(1, 0.5),
+            Position = UDim2.new(1, 0, 0.5, 0),
+            Parent = right
+        })
+        round(valueBox, 4)
 
         local tooltip = new("TextLabel", {
             Text = tostring(value),
@@ -663,6 +699,7 @@ function LIB:CreateWindow(opts)
             if cb then cb(value) end
             labelLeft.Text = string.format("%s: %s", tostring(text), tostring(value))
             tooltip.Text = tostring(value)
+            valueBox.Text = tostring(value)
             local localX = math.clamp(px - rowFrame.AbsolutePosition.X, 12, rowFrame.AbsoluteSize.X - 12)
             local localY = bar.AbsolutePosition.Y - rowFrame.AbsolutePosition.Y - 4
             tooltip.Position = UDim2.fromOffset(localX, localY)
@@ -690,6 +727,15 @@ function LIB:CreateWindow(opts)
         end)
         bar.MouseLeave:Connect(function()
             if not dragging then tooltip.Visible = false end
+        end)
+        valueBox.FocusLost:Connect(function()
+            local n = tonumber(valueBox.Text)
+            if n then
+                n = math.clamp(math.floor(n + 0.5), min, max)
+                setFromX(bar.AbsolutePosition.X + bar.AbsoluteSize.X * ((n - min) / math.max(1, (max - min))))
+            else
+                valueBox.Text = tostring(value)
+            end
         end)
 
         local function set(v)
