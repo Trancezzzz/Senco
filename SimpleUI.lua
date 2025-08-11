@@ -247,13 +247,32 @@ function LIB:CreateWindow(opts)
         Parent = window
     })
 
+    local function isLight()
+        local c = theme.WindowBg
+        local r, g, b = c.R, c.G, c.B
+        local lum = 0.2126 * r + 0.7152 * g + 0.0722 * b
+        return lum > 0.7
+    end
+
+    local function outlineColor()
+        if isLight() then
+            return Color3.fromRGB(20, 20, 28) -- darker outline on light themes
+        end
+        return theme.Accent
+    end
+
     local function addGlow(frame)
         local stroke = Instance.new("UIStroke")
         stroke.Thickness = 1.2
-        stroke.Color = theme.Accent
-        stroke.Transparency = 0.6
+        stroke.Color = outlineColor()
+        stroke.Transparency = isLight() and 0.8 or 0.6
         stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
         stroke.Parent = frame
+        -- keep stroke in sync with theme
+        table.insert(api._themeWatch, function()
+            stroke.Color = outlineColor()
+            stroke.Transparency = isLight() and 0.8 or 0.6
+        end)
         return stroke
     end
     local windowStroke = addGlow(window)
@@ -307,6 +326,10 @@ function LIB:CreateWindow(opts)
             Size = UDim2.fromOffset(130, r.Size.Y.Offset),
             Parent = r
         })
+        table.insert(api._themeWatch, function()
+            r.BackgroundColor3 = theme.RowBg
+            lbl.TextColor3 = theme.Text
+        end)
         return r, lbl, right, rStroke
     end
 
