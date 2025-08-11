@@ -396,7 +396,7 @@ function LIB:CreateWindow(opts)
             Font = Enum.Font.GothamSemibold,
             TextSize = 13,
             TextColor3 = theme.Text,
-            BackgroundColor3 = DEFAULT_THEME.Button,
+            BackgroundColor3 = theme.Button,
             AutoButtonColor = false,
             Size = UDim2.new(1, -8, 0, 28),
             Parent = tabsBar
