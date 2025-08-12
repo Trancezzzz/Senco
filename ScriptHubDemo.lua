@@ -28,6 +28,11 @@ local team = main:AddDropdown("Team", {"Red", "Blue", "Green"}, "Red", function(
     print("[+] Team:", v)
 end, "team")
 
+main:AddSection("Advanced")
+local roles = main:AddMultiDropdown("Roles", {"Sniper","Medic","Engineer","Scout"}, {"Scout"}, function(list)
+    print("[+] Roles:", table.concat(list, ", "))
+end, "roles")
+
 -- Player tab
 player:AddSection("Movement")
 local ws = player:AddSlider("WalkSpeed", 8, 32, 16, function(v)

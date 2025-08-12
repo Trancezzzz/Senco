@@ -47,6 +47,45 @@ local function new(class, props, children)
     return inst
 end
 
+-- Simple tween helper
+local function tween(obj, info, props)
+    local ti
+    if typeof(info) == "number" then
+        ti = TweenInfo.new(info, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+    else
+        ti = info
+    end
+    return TS:Create(obj, ti, props)
+end
+
+-- Ripple effect on buttons
+local function attachRipple(button)
+    if not button or not button:IsA("TextButton") then return end
+    button.ClipsDescendants = true
+    button.AutoButtonColor = false
+    button.MouseButton1Down:Connect(function(x, y)
+        local absPos = button.AbsolutePosition
+        local absSize = button.AbsoluteSize
+        local radius = math.max(absSize.X, absSize.Y)
+        local ripple = Instance.new("Frame")
+        ripple.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+        ripple.BackgroundTransparency = 0.8
+        ripple.Size = UDim2.fromOffset(0, 0)
+        ripple.Position = UDim2.fromOffset((x - absPos.X), (y - absPos.Y))
+        ripple.AnchorPoint = Vector2.new(0.5, 0.5)
+        ripple.ZIndex = (button.ZIndex or 1) + 1
+        ripple.Parent = button
+        local corner = Instance.new("UICorner")
+        corner.CornerRadius = UDim.new(1, 0)
+        corner.Parent = ripple
+        tween(ripple, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+            Size = UDim2.fromOffset(radius * 1.8, radius * 1.8),
+            BackgroundTransparency = 1
+        }):Play()
+        task.delay(0.4, function() if ripple then ripple:Destroy() end end)
+    end)
+end
+
 local function round(obj, r)
     new("UICorner", { CornerRadius = UDim.new(0, r or 6) }).Parent = obj
 end
@@ -364,8 +403,30 @@ function LIB:CreateWindow(opts)
         barStroke.Color = theme.Accent
     end)
 
-    function api:Show() screen.Enabled = true print("[+] UI shown") end
-    function api:Hide() screen.Enabled = false print("[-] UI hidden") end
+    api._visible = true
+    api._scale = window:FindFirstChildOfClass("UIScale")
+    function api:Show()
+        screen.Enabled = true
+        if self._scale then self._scale.Scale = 0.96 end
+        window.BackgroundTransparency = 0
+        bar.BackgroundTransparency = 0
+        tween(self._scale or window, 0.2, { Scale = 1 }):Play()
+        self._visible = true
+        print("[+] UI shown")
+    end
+    function api:Hide()
+        if self._visible then
+            local tw = tween(self._scale or window, 0.15, { Scale = 0.97 })
+            tw:Play()
+            tw.Completed:Wait()
+        end
+        screen.Enabled = false
+        self._visible = false
+        print("[-] UI hidden")
+    end
+    function api:Toggle()
+        if self._visible and screen.Enabled then self:Hide() else self:Show() end
+    end
     function api:Destroy()
         if window and window.Parent then window:Destroy() end
         if CACHE.__windows and CACHE.__windows[api.Id] then
@@ -425,6 +486,7 @@ function LIB:CreateWindow(opts)
             Parent = tabsBar
         })
         round(tabBtn, 6)
+        attachRipple(tabBtn)
         tabBtn.MouseEnter:Connect(function() tabBtn.BackgroundColor3 = theme.ButtonHover end)
         tabBtn.MouseLeave:Connect(function() tabBtn.BackgroundColor3 = theme.Button end)
         addWatch(function()
@@ -571,6 +633,7 @@ function LIB:CreateWindow(opts)
                 Parent = right
             })
             round(btn, 6)
+            attachRipple(btn)
             btn.MouseEnter:Connect(function() btn.BackgroundColor3 = theme.ButtonHover end)
             btn.MouseLeave:Connect(function() btn.BackgroundColor3 = theme.Button end)
             btn.MouseButton1Click:Connect(function() if cb then cb() end end)
@@ -710,6 +773,7 @@ function LIB:CreateWindow(opts)
                 Parent = right
             })
             round(btn, 6)
+            attachRipple(btn)
             btn.MouseEnter:Connect(function() btn.BackgroundColor3 = theme.ButtonHover end)
             btn.MouseLeave:Connect(function() btn.BackgroundColor3 = theme.Button end)
 
@@ -718,16 +782,24 @@ function LIB:CreateWindow(opts)
                 BackgroundColor3 = theme.RowBg,
                 BorderSizePixel = 0,
                 Visible = false,
+                Size = UDim2.new(1, -16, 0, 0),
+                Position = UDim2.new(0, 8, 1, 4),
                 Parent = rowFrame
             })
             round(menu, 6)
             pad(menu, 6)
             local menuList = new("UIListLayout", { FillDirection = Enum.FillDirection.Vertical, Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder })
             menuList.Parent = menu
+            local menuStroke = Instance.new("UIStroke")
+            menuStroke.Thickness = 1
+            menuStroke.Color = outlineColor()
+            menuStroke.Transparency = 0.6
+            menuStroke.Parent = menu
             addWatch(function()
                 btn.BackgroundColor3 = theme.Button
                 btn.TextColor3 = theme.Text
                 menu.BackgroundColor3 = theme.RowBg
+                menuStroke.Color = outlineColor()
             end)
 
             local value = defaultValue or options[1]
@@ -747,23 +819,49 @@ function LIB:CreateWindow(opts)
                         Parent = menu
                     })
                     round(optBtn, 4)
+                    attachRipple(optBtn)
                     optBtn.MouseEnter:Connect(function() optBtn.BackgroundColor3 = theme.ButtonHover end)
                     optBtn.MouseLeave:Connect(function() optBtn.BackgroundColor3 = theme.Button end)
                     optBtn.MouseButton1Click:Connect(function()
                         value = opt
                         btn.Text = tostring(value)
-                        menu.Visible = false
                         open = false
+                        tween(menu, 0.12, { Size = UDim2.new(1, -16, 0, 0) }):Play()
+                        task.delay(0.13, function() menu.Visible = false end)
                         if cb then cb(value) end
                     end)
                 end
-                menu.Size = UDim2.new(1, -16, 0, menuList.AbsoluteContentSize.Y + 8)
+                menu.Size = UDim2.new(1, -16, 0, math.max(0, menuList.AbsoluteContentSize.Y + 8))
             end
             rebuild()
 
             btn.MouseButton1Click:Connect(function()
                 open = not open
-                menu.Visible = open
+                if open then
+                    menu.Visible = true
+                    rebuild()
+                    tween(menu, 0.12, { Size = UDim2.new(1, -16, 0, menuList.AbsoluteContentSize.Y + 8) }):Play()
+                else
+                    tween(menu, 0.12, { Size = UDim2.new(1, -16, 0, 0) }):Play()
+                    task.delay(0.13, function() if not open then menu.Visible = false end end)
+                end
+            end)
+
+            -- Close when clicking outside
+            local outsideConn
+            outsideConn = UIS.InputBegan:Connect(function(i, gp)
+                if gp then return end
+                if open and i.UserInputType == Enum.UserInputType.MouseButton1 then
+                    local mp = UIS:GetMouseLocation()
+                    local abs = menu.AbsolutePosition
+                    local size = menu.AbsoluteSize
+                    local inside = (mp.X >= abs.X and mp.X <= abs.X + size.X and mp.Y >= abs.Y and mp.Y <= abs.Y + size.Y)
+                    if not inside then
+                        open = false
+                        tween(menu, 0.12, { Size = UDim2.new(1, -16, 0, 0) }):Play()
+                        task.delay(0.13, function() if not open then menu.Visible = false end end)
+                    end
+                end
             end)
 
             local function set(v)
@@ -777,6 +875,93 @@ function LIB:CreateWindow(opts)
             end
             register(id, function() return value end, set)
             return { Set = set, Get = function() return value end, SetOptions = setOptions }
+        end
+
+        function tabApi:AddMultiDropdown(text, options, defaults, cb, id)
+            options = options or {}
+            local selected = {}
+            if type(defaults) == "table" then for _, v in ipairs(defaults) do selected[tostring(v)] = true end end
+            local rowFrame, _, right = row(container, text, 36)
+            local btn = new("TextButton", {
+                Text = "Select...",
+                Font = Enum.Font.Gotham,
+                TextSize = 13,
+                TextColor3 = theme.Text,
+                BackgroundColor3 = theme.Button,
+                AutoButtonColor = false,
+                Size = UDim2.new(1, 0, 0, 28),
+                Parent = right
+            })
+            round(btn, 6)
+            attachRipple(btn)
+            local function refreshText()
+                local list = {}
+                for _, opt in ipairs(options) do if selected[tostring(opt)] then table.insert(list, tostring(opt)) end end
+                if #list == 0 then btn.Text = "Select..." elseif #list <= 2 then btn.Text = table.concat(list, ", ") else btn.Text = list[1] .. " +" .. tostring(#list - 1) end
+            end
+            local open = false
+            local menu = new("Frame", { BackgroundColor3 = theme.RowBg, BorderSizePixel = 0, Visible = false, Size = UDim2.new(1, -16, 0, 0), Position = UDim2.new(0, 8, 1, 4), Parent = rowFrame })
+            round(menu, 6)
+            pad(menu, 6)
+            local menuList = new("UIListLayout", { FillDirection = Enum.FillDirection.Vertical, Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder })
+            menuList.Parent = menu
+            local function rebuild()
+                menu:ClearAllChildren()
+                menuList.Parent = menu
+                for _, opt in ipairs(options) do
+                    local chosen = selected[tostring(opt)]
+                    local optBtn = new("TextButton", { Text = (chosen and "[x] " or "[ ] ") .. tostring(opt), Font = Enum.Font.Gotham, TextSize = 13, TextColor3 = theme.Text, BackgroundColor3 = theme.Button, AutoButtonColor = false, Size = UDim2.new(1, -8, 0, 24), Parent = menu })
+                    round(optBtn, 4)
+                    attachRipple(optBtn)
+                    optBtn.MouseEnter:Connect(function() optBtn.BackgroundColor3 = theme.ButtonHover end)
+                    optBtn.MouseLeave:Connect(function() optBtn.BackgroundColor3 = theme.Button end)
+                    optBtn.MouseButton1Click:Connect(function()
+                        selected[tostring(opt)] = not selected[tostring(opt)] or nil
+                        rebuild()
+                        refreshText()
+                        if cb then
+                            local out = {}
+                            for _, o in ipairs(options) do if selected[tostring(o)] then table.insert(out, o) end end
+                            cb(out)
+                        end
+                    end)
+                end
+                menu.Size = UDim2.new(1, -16, 0, menuList.AbsoluteContentSize.Y + 8)
+            end
+            rebuild()
+            refreshText()
+            btn.MouseButton1Click:Connect(function()
+                open = not open
+                if open then
+                    menu.Visible = true
+                    rebuild()
+                    tween(menu, 0.12, { Size = UDim2.new(1, -16, 0, menuList.AbsoluteContentSize.Y + 8) }):Play()
+                else
+                    tween(menu, 0.12, { Size = UDim2.new(1, -16, 0, 0) }):Play()
+                    task.delay(0.13, function() if not open then menu.Visible = false end end)
+                end
+            end)
+            register(id, function()
+                local out = {}
+                for _, o in ipairs(options) do if selected[tostring(o)] then table.insert(out, o) end end
+                return out
+            end, function(vals)
+                selected = {}
+                if type(vals) == "table" then for _, v in ipairs(vals) do selected[tostring(v)] = true end end
+                rebuild(); refreshText()
+            end)
+            return {
+                Get = function()
+                    local out = {}
+                    for _, o in ipairs(options) do if selected[tostring(o)] then table.insert(out, o) end end
+                    return out
+                end,
+                Set = function(vals)
+                    selected = {}
+                    if type(vals) == "table" then for _, v in ipairs(vals) do selected[tostring(v)] = true end end
+                    rebuild(); refreshText()
+                end
+            }
         end
 
         -- expose base methods to tab
@@ -808,6 +993,7 @@ function LIB:CreateWindow(opts)
             Parent = right
         })
         round(btn, 6)
+        attachRipple(btn)
         btn.MouseEnter:Connect(function() btn.BackgroundColor3 = theme.ButtonHover end)
         btn.MouseLeave:Connect(function() btn.BackgroundColor3 = theme.Button end)
         btn.MouseButton1Click:Connect(function() if cb then cb() end end)
@@ -970,6 +1156,7 @@ function LIB:CreateWindow(opts)
             Parent = right
         })
         round(btn, 6)
+        attachRipple(btn)
         btn.MouseEnter:Connect(function() btn.BackgroundColor3 = theme.ButtonHover end)
         btn.MouseLeave:Connect(function() btn.BackgroundColor3 = theme.Button end)
 
@@ -1117,7 +1304,18 @@ do
     local screen = ensureScreen()
     UIS.InputBegan:Connect(function(i, gp)
         if not gp and i.KeyCode == Enum.KeyCode.RightShift then
-            screen.Enabled = not screen.Enabled
+            local any = false
+            if CACHE.__windows then
+                for _, win in pairs(CACHE.__windows) do
+                    if type(win.Toggle) == "function" then
+                        win:Toggle()
+                        any = true
+                    end
+                end
+            end
+            if not any then
+                screen.Enabled = not screen.Enabled
+            end
         end
     end)
 end
